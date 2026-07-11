@@ -18,6 +18,53 @@ export function generateRoomCode(): string {
   return code;
 }
 
+export function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+export function selectQuestionsForRoom(room: RoomState): string[] {
+  const eligibleQuestions = db.getQuestions(room.settings.difficulty, room.settings.categories);
+  
+  if (eligibleQuestions.length === 0) {
+    throw new Error('No questions found matching your category and difficulty settings.');
+  }
+
+  // Initialize recentlyUsedQuestionIds if not present
+  if (!room.recentlyUsedQuestionIds) {
+    room.recentlyUsedQuestionIds = [];
+  }
+
+  // Filter out recently used questions
+  let available = eligibleQuestions.filter(q => !room.recentlyUsedQuestionIds!.includes(q.id));
+
+  // If we don't have enough unused questions, reset recentlyUsedQuestionIds
+  if (available.length < room.settings.rounds) {
+    console.log(`[GameManager] Pool of unused questions is depleted (${available.length}/${room.settings.rounds}). Resetting recently used questions for room ${room.roomCode}.`);
+    room.recentlyUsedQuestionIds = [];
+    available = eligibleQuestions;
+  }
+
+  // Shuffle using Fisher-Yates
+  const shuffled = shuffleArray(available);
+
+  // Take the required number of questions
+  const selected = shuffled.slice(0, room.settings.rounds);
+
+  // Add selected question IDs to recentlyUsedQuestionIds
+  selected.forEach(q => {
+    if (!room.recentlyUsedQuestionIds!.includes(q.id)) {
+      room.recentlyUsedQuestionIds!.push(q.id);
+    }
+  });
+
+  return selected.map(q => q.id);
+}
+
 export function createRoom(hostNickname: string, hostAvatar: string, sessionId: string, socketId: string): RoomState {
   const roomCode = generateRoomCode();
   
@@ -302,15 +349,8 @@ export function initializeGame(roomCode: string, hostPlayerId: string): RoomStat
     throw new Error('Wait for all connected players to be ready.');
   }
 
-  // Fetch eligible questions
-  const eligibleQuestions = db.getQuestions(room.settings.difficulty, room.settings.categories);
-  if (eligibleQuestions.length < room.settings.rounds) {
-    throw new Error(`Insufficient questions available. Only ${eligibleQuestions.length} matched your criteria.`);
-  }
-
-  // Shuffle and select random questions
-  const shuffled = eligibleQuestions.sort(() => Math.random() - 0.5);
-  room.selectedQuestionIds = shuffled.slice(0, room.settings.rounds).map(q => q.id);
+  // Select questions avoiding repeats
+  room.selectedQuestionIds = selectQuestionsForRoom(room);
   
   // Reset all stats
   room.players.forEach(p => {
@@ -617,13 +657,8 @@ export function resetRoomForRematch(roomCode: string, playerId: string): RoomSta
     throw new Error('Only the host can request a rematch.');
   }
 
-  // Fetch eligible questions excluding previous selected ones if possible
-  const eligibleQuestions = db.getQuestions(room.settings.difficulty, room.settings.categories);
-  const unspentQuestions = eligibleQuestions.filter(q => !room.selectedQuestionIds.includes(q.id));
-  
-  const pool = unspentQuestions.length >= room.settings.rounds ? unspentQuestions : eligibleQuestions;
-  const shuffled = pool.sort(() => Math.random() - 0.5);
-  room.selectedQuestionIds = shuffled.slice(0, room.settings.rounds).map(q => q.id);
+  // Select questions avoiding repeats across rematches
+  room.selectedQuestionIds = selectQuestionsForRoom(room);
 
   // Reset player scores
   room.players.forEach(p => {

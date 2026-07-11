@@ -28,6 +28,13 @@ class FileDatabase {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         this.cache = JSON.parse(raw);
         console.log(`[DB] Database loaded from ${DB_FILE}. Questions: ${this.cache.questions.length}, History: ${this.cache.history.length}`);
+        
+        // Always ensure we have the large, vetted 1500+ questions database
+        if (this.cache.questions.length < 1500) {
+          console.log('[DB] Questions bank is outdated. Upgrading to our new audited 1500+ question system...');
+          this.cache.questions = getInitialQuestions();
+          this.save();
+        }
       } else {
         console.log('[DB] No database file found. Seeding initial questions...');
         this.cache.questions = getInitialQuestions();

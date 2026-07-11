@@ -92,6 +92,7 @@ export interface RoomState {
   submittedAnswers: Record<string, { option: string; responseTime: number }>; // key: playerId
   ropePosition: number; // -100 (left player/red team) to +100 (right player/blue team)
   createdAt: number;
+  recentlyUsedQuestionIds?: string[];
 }
 
 export interface GameHistory {
