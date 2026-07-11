@@ -13,7 +13,7 @@ Players can create or join a game room using a unique room code, choose a diffic
 The game is deployed and available online:
 
 **Live Application:**
-https://tug-of-war-production-0b19.up.railway.app/
+https://tug-of-war-production-770d.up.railway.app/
 
 ---
 
